@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>keyspider</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    .row { display: flex; gap: 16px; }
+    .col { flex: 1; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+    #log { height: 420px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; background: #0b0f14; color: #d7e1ea; padding: 10px; border-radius: 6px; }
+    .muted { color: #666; }
+    input, select { padding: 6px; }
+    a { color: #0b66c3; }
+  </style>
+</head>
+<body>
+  <h1>keyspider</h1>
+  <p class="muted">Live watcher stream + recent events. (Minimal UI scaffold.)</p>
+
+  <div class="row">
+    <div class="col card">
+      <h3>Exports</h3>
+      <ul>
+        <li><a href="/export/graph?format=json" target="_blank">Graph JSON</a></li>
+        <li><a href="/export/graph?format=csv" target="_blank">Graph CSV (edges)</a></li>
+        <li><a href="/export/graph?format=graphml" target="_blank">Graph GraphML</a></li>
+      </ul>
+    </div>
+    <div class="col card">
+      <h3>Hosts</h3>
+      <button id="refreshHosts">Refresh</button>
+      <select id="hostSelect"></select>
+      <button id="loadEvents">Load recent events</button>
+      <div id="hostsMeta" class="muted"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <h3>Live stream</h3>
+    <div>
+      <label>Filter contains:</label>
+      <input id="filter" placeholder="fingerprint / ip / user" style="width: 320px;" />
+      <button id="clear">Clear</button>
+    </div>
+    <div id="log"></div>
+  </div>
+
+<script>
+const logEl = document.getElementById('log');
+const hostSelect = document.getElementById('hostSelect');
+const hostsMeta = document.getElementById('hostsMeta');
+const filterEl = document.getElementById('filter');
+
+function appendLine(line) {
+  const f = filterEl.value.trim();
+  if (f && !line.includes(f)) return;
+  const div = document.createElement('div');
+  div.textContent = line;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function refreshHosts() {
+  const res = await fetch('/hosts');
+  const hosts = await res.json();
+  hostSelect.innerHTML = '';
+  for (const h of hosts) {
+    const opt = document.createElement('option');
+    opt.value = h.id;
+    opt.textContent = `${h.hostname} (id=${h.id}, reachable=${h.reachable_from_jump})`;
+    hostSelect.appendChild(opt);
+  }
+  hostsMeta.textContent = `loaded ${hosts.length} hosts`;
+}
+
+async function loadEvents() {
+  const hostId = hostSelect.value;
+  if (!hostId) return;
+  const res = await fetch(`/events?host_id=${encodeURIComponent(hostId)}`);
+  const events = await res.json();
+  appendLine(`--- recent events for host_id=${hostId} (${events.length}) ---`);
+  for (const ev of events.reverse()) {
+    appendLine(`[${ev.ts}] user=${ev.dest_user||''} src=${ev.source_host||ev.source_ip||''} fp=${ev.fingerprint_sha256||''} :: ${ev.raw_line}`);
+  }
+}
+
+// SSE
+const es = new EventSource('/watch/events');
+es.onmessage = (e) => {
+  try {
+    const obj = JSON.parse(e.data);
+    appendLine(`[${obj.ts}] dest=${obj.dest_host} user=${obj.dest_user||''} src=${obj.source_ip||''}:${obj.source_port||''} fp=${obj.fingerprint||''} :: ${obj.raw}`);
+  } catch (err) {
+    appendLine(e.data);
+  }
+};
+
+es.onerror = () => appendLine('--- SSE disconnected (will auto-retry) ---');
+
+document.getElementById('refreshHosts').onclick = refreshHosts;
+document.getElementById('loadEvents').onclick = loadEvents;
+document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
+
+refreshHosts();
+</script>
+</body>
+</html>

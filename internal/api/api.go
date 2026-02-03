@@ -11,6 +11,7 @@ import (
 	"github.com/jsherman999/openclaw_keyspider/internal/exporter"
 	"github.com/jsherman999/openclaw_keyspider/internal/store"
 	"github.com/jsherman999/openclaw_keyspider/internal/watchhub"
+	"github.com/jsherman999/openclaw_keyspider/internal/webui"
 )
 
 type API struct {
@@ -126,6 +127,12 @@ func (a *API) Router() http.Handler {
 		w.WriteHeader(200)
 		_, _ = w.Write(b)
 	})
+
+	// Web UI
+	ui, err := webui.Handler()
+	if err == nil {
+		r.Handle("/*", ui)
+	}
 
 	return r
 }
