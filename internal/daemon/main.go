@@ -14,6 +14,7 @@ import (
 	"github.com/jsherman999/openclaw_keyspider/internal/config"
 	"github.com/jsherman999/openclaw_keyspider/internal/db"
 	"github.com/jsherman999/openclaw_keyspider/internal/watcher"
+	"github.com/jsherman999/openclaw_keyspider/internal/watchhub"
 	"github.com/spf13/cobra"
 )
 
@@ -72,14 +73,15 @@ func serveCmd(cfgPath *string) *cobra.Command {
 				return err
 			}
 
-			h := api.New(cfg, dbConn)
+			h := api.New(cfg, dbConn, hub)
 			srv := &http.Server{Addr: cfg.API.Listen, Handler: h.Router()}
 
-			// Phase 3 watcher (approximate real-time)
+			hub := watchhub.New()
+			// Phase 3 watcher (streaming)
 			watchCtx, watchCancel := context.WithCancel(context.Background())
 			defer watchCancel()
 			go func() {
-				w := watcher.New(cfg, dbConn)
+				w := watcher.New(cfg, dbConn, hub)
 				w.Run(watchCtx)
 			}()
 

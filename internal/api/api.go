@@ -10,16 +10,18 @@ import (
 	"github.com/jsherman999/openclaw_keyspider/internal/db"
 	"github.com/jsherman999/openclaw_keyspider/internal/exporter"
 	"github.com/jsherman999/openclaw_keyspider/internal/store"
+	"github.com/jsherman999/openclaw_keyspider/internal/watchhub"
 )
 
 type API struct {
 	cfg   *config.Config
 	db    *db.DB
 	store *store.Store
+	hub   *watchhub.Hub
 }
 
-func New(cfg *config.Config, dbc *db.DB) *API {
-	return &API{cfg: cfg, db: dbc, store: store.New(dbc)}
+func New(cfg *config.Config, dbc *db.DB, hub *watchhub.Hub) *API {
+	return &API{cfg: cfg, db: dbc, store: store.New(dbc), hub: hub}
 }
 
 func (a *API) Router() http.Handler {
@@ -28,6 +30,37 @@ func (a *API) Router() http.Handler {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Phase 3: SSE stream of newly-ingested watcher events.
+	r.Get("/watch/events", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		ch := a.hub.Subscribe(256)
+		defer a.hub.Unsubscribe(ch)
+
+		// send a comment to open stream
+		_, _ = w.Write([]byte(": ok\n\n"))
+		flusher.Flush()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case b := <-ch:
+				_, _ = w.Write([]byte("data: "))
+				_, _ = w.Write(b)
+				_, _ = w.Write([]byte("\n\n"))
+				flusher.Flush()
+			}
+		}
 	})
 
 	r.Get("/hosts", func(w http.ResponseWriter, r *http.Request) {
