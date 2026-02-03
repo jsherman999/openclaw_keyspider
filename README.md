@@ -18,13 +18,16 @@ Keyspider maps SSH key usage across an environment from a central jump server.
 - Discover source hosts from events (DNS)
 - Attempt enrichment (reachable/unreachable flag)
 - Build edges and basic graph queries
+- Persist authorized_keys -> fingerprints -> keys
+- Best-effort key hunt (private key *locations* only) under allowlisted roots
 
 ### Phase 3: watcher (near real-time)
-- Tail/journal follow for watched hosts
-- Stream events via SSE
-- Web live console
+- Watcher service that ingests new access events continuously
+- Scroll/search events via API/UI
 
 ### Phase 4: hardening + AIX + reporting
+- Documented in `docs/phase4_overview.md`
+- Implemented now: export formats
 
 ## Development
 

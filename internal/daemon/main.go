@@ -13,6 +13,7 @@ import (
 	"github.com/jsherman999/openclaw_keyspider/internal/api"
 	"github.com/jsherman999/openclaw_keyspider/internal/config"
 	"github.com/jsherman999/openclaw_keyspider/internal/db"
+	"github.com/jsherman999/openclaw_keyspider/internal/watcher"
 	"github.com/spf13/cobra"
 )
 
@@ -73,6 +74,14 @@ func serveCmd(cfgPath *string) *cobra.Command {
 
 			h := api.New(cfg, dbConn)
 			srv := &http.Server{Addr: cfg.API.Listen, Handler: h.Router()}
+
+			// Phase 3 watcher (approximate real-time)
+			watchCtx, watchCancel := context.WithCancel(context.Background())
+			defer watchCancel()
+			go func() {
+				w := watcher.New(cfg, dbConn)
+				w.Run(watchCtx)
+			}()
 
 			go func() {
 				log.Printf("keyspiderd listening on %s", cfg.API.Listen)

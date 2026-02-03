@@ -36,7 +36,8 @@ type Config struct {
 	} `mapstructure:"key_hunt"`
 
 	Watcher struct {
-		Enabled bool `mapstructure:"enabled"`
+		Enabled bool     `mapstructure:"enabled"`
+		Hosts   []string `mapstructure:"hosts"`
 	} `mapstructure:"watcher"`
 }
 
@@ -54,6 +55,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("key_hunt.max_files", 20000)
 	v.SetDefault("key_hunt.max_depth", 10)
 	v.SetDefault("watcher.enabled", false)
+	v.SetDefault("watcher.hosts", []string{})
 
 	// Env overrides
 	v.SetEnvPrefix("KEYSPIDER")

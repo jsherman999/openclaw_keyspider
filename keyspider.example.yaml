@@ -26,3 +26,4 @@ key_hunt:
 
 watcher:
   enabled: false
+  hosts: []
