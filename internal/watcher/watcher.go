@@ -2,9 +2,12 @@ package watcher
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jsherman999/openclaw_keyspider/internal/config"
@@ -27,10 +30,24 @@ type Watcher struct {
 	ssh   *sshclient.Client
 	hub   *watchhub.Hub
 	parse *parsers.LinuxSSHDParser
+
+	// in-memory dedupe: per-host ring of recent hashes
+	mu      sync.Mutex
+	recent  map[int64][]string
+	recentI map[int64]int
 }
 
 func New(cfg *config.Config, dbc *db.DB, hub *watchhub.Hub) *Watcher {
-	return &Watcher{cfg: cfg, db: dbc, st: store.New(dbc), ssh: sshclient.New(cfg), hub: hub, parse: parsers.NewLinuxSSHDParser(time.Now)}
+	return &Watcher{
+		cfg:     cfg,
+		db:      dbc,
+		st:      store.New(dbc),
+		ssh:     sshclient.New(cfg),
+		hub:     hub,
+		parse:   parsers.NewLinuxSSHDParser(time.Now),
+		recent:  map[int64][]string{},
+		recentI: map[int64]int{},
+	}
 }
 
 func (w *Watcher) Run(ctx context.Context) {
@@ -70,8 +87,17 @@ func (w *Watcher) watchHost(ctx context.Context, host string) {
 		_ = w.st.EnsureWatcher(ctx, hid, "auto")
 
 		state, _ := w.st.GetWatcherState(ctx, hid)
-		mode := "auto"
+		mode := w.cfg.Watcher.DefaultMode
+		if mode == "" {
+			mode = "auto"
+		}
+		if w.cfg.Watcher.HostModes != nil {
+			if m, ok := w.cfg.Watcher.HostModes[host]; ok && m != "" {
+				mode = m
+			}
+		}
 		if state != nil && state.Mode != "" {
+			// DB overrides config.
 			mode = state.Mode
 		}
 
@@ -130,6 +156,13 @@ exit 2
 }
 
 func (w *Watcher) handleLogLine(ctx context.Context, hostID int64, host string, line string) {
+	// Dedupe by hash of raw line + host_id.
+	h := sha256.Sum256([]byte(host + "\n" + line))
+	sha := hex.EncodeToString(h[:])
+	if w.seenRecently(hostID, sha) {
+		return
+	}
+
 	ev, ok := w.parse.ParseLineEnhanced(line)
 	if !ok {
 		return
@@ -152,10 +185,18 @@ func (w *Watcher) handleLogLine(ctx context.Context, hostID int64, host string, 
 		RawLine:    line,
 	}
 
+	// DB-level last-hash dedupe (helps across restarts).
+	if st, err := w.st.GetWatcherState(ctx, hostID); err == nil {
+		if st.LastEventSHA256 != nil && *st.LastEventSHA256 == sha {
+			return
+		}
+	}
+
 	id, err := w.st.InsertAccessEvent(ctx, storeEv)
 	if err != nil {
 		return
 	}
+	_ = w.st.UpdateWatcherLastHash(ctx, hostID, sha)
 
 	// minimal edge update; label is IP until DNS enrichment via spider scan.
 	srcLabel := ev.SourceIP

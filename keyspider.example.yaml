@@ -27,3 +27,6 @@ key_hunt:
 watcher:
   enabled: false
   hosts: []
+  default_mode: auto   # auto|journal|tail
+  host_modes: {}       # e.g. {"aix1.example.com": "tail"}
+  dedupe_window: 256

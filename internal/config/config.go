@@ -36,8 +36,11 @@ type Config struct {
 	} `mapstructure:"key_hunt"`
 
 	Watcher struct {
-		Enabled bool     `mapstructure:"enabled"`
-		Hosts   []string `mapstructure:"hosts"`
+		Enabled      bool              `mapstructure:"enabled"`
+		Hosts        []string          `mapstructure:"hosts"`
+		DefaultMode  string            `mapstructure:"default_mode"`  // auto|journal|tail
+		HostModes    map[string]string `mapstructure:"host_modes"`    // hostname -> mode
+		DedupeWindow int               `mapstructure:"dedupe_window"` // in-memory recent hashes per host
 	} `mapstructure:"watcher"`
 }
 
@@ -56,6 +59,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("key_hunt.max_depth", 10)
 	v.SetDefault("watcher.enabled", false)
 	v.SetDefault("watcher.hosts", []string{})
+	v.SetDefault("watcher.default_mode", "auto")
+	v.SetDefault("watcher.host_modes", map[string]string{})
+	v.SetDefault("watcher.dedupe_window", 256)
 
 	// Env overrides
 	v.SetEnvPrefix("KEYSPIDER")
