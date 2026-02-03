@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jsherman999/openclaw_keyspider/internal/config"
 	"github.com/jsherman999/openclaw_keyspider/internal/db"
+	"github.com/jsherman999/openclaw_keyspider/internal/exporter"
 	"github.com/jsherman999/openclaw_keyspider/internal/store"
 )
 
@@ -55,6 +56,42 @@ func (a *API) Router() http.Handler {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(events)
+	})
+
+	// Phase 4 (exports only): download graph export.
+	// GET /export/graph?format=json|csv|graphml
+	r.Get("/export/graph", func(w http.ResponseWriter, r *http.Request) {
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			format = "json"
+		}
+		limit := 10000
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if v, err := strconv.Atoi(l); err == nil {
+				limit = v
+			}
+		}
+
+		var b []byte
+		var ct string
+		switch format {
+		case "json":
+			b, ct, err = exporter.ExportGraphJSON(r.Context(), a.store, limit)
+		case "csv":
+			b, ct, err = exporter.ExportGraphCSV(r.Context(), a.store, limit)
+		case "graphml":
+			b, ct, err = exporter.ExportGraphGraphML(r.Context(), a.store, limit)
+		default:
+			http.Error(w, "unknown format", 400)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", ct)
+		w.WriteHeader(200)
+		_, _ = w.Write(b)
 	})
 
 	return r

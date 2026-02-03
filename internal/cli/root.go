@@ -22,6 +22,7 @@ func Main() {
 	root.PersistentFlags().StringVar(&cfgPath, "config", "", "config file (yaml)")
 
 	root.AddCommand(scanCmd(&cfgPath))
+	root.AddCommand(exportCmd(&cfgPath))
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
