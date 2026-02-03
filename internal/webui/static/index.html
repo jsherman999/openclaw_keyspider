@@ -27,6 +27,8 @@
         <li><a href="/export/graph?format=csv" target="_blank">Graph CSV (edges)</a></li>
         <li><a href="/export/graph?format=graphml" target="_blank">Graph GraphML</a></li>
       </ul>
+      <button id="loadGraph">Load graph (JSON)</button>
+      <div id="graphMeta" class="muted"></div>
     </div>
     <div class="col card">
       <h3>Hosts</h3>
@@ -35,6 +37,15 @@
       <button id="loadEvents">Load recent events</button>
       <div id="hostsMeta" class="muted"></div>
     </div>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <h3>Edges (latest)</h3>
+    <div>
+      <label>Edge filter contains:</label>
+      <input id="edgeFilter" placeholder="hostname / src label" style="width: 320px;" />
+    </div>
+    <div id="edges" style="max-height: 220px; overflow: auto;"></div>
   </div>
 
   <div class="card" style="margin-top: 16px;">
@@ -52,6 +63,11 @@ const logEl = document.getElementById('log');
 const hostSelect = document.getElementById('hostSelect');
 const hostsMeta = document.getElementById('hostsMeta');
 const filterEl = document.getElementById('filter');
+const edgeFilterEl = document.getElementById('edgeFilter');
+const edgesEl = document.getElementById('edges');
+const graphMetaEl = document.getElementById('graphMeta');
+
+let cachedGraph = null;
 
 function appendLine(line) {
   const f = filterEl.value.trim();
@@ -86,6 +102,33 @@ async function loadEvents() {
   }
 }
 
+function renderEdges() {
+  edgesEl.innerHTML = '';
+  if (!cachedGraph) return;
+
+  const filter = (edgeFilterEl.value || '').trim();
+  const hostById = new Map();
+  for (const h of cachedGraph.hosts || []) hostById.set(h.id, h);
+
+  const edges = (cachedGraph.edges || []).slice(0, 200);
+  for (const e of edges) {
+    const src = e.src_host_id ? (hostById.get(e.src_host_id)?.hostname || `host:${e.src_host_id}`) : e.src_label;
+    const dst = hostById.get(e.dest_host_id)?.hostname || `host:${e.dest_host_id}`;
+    const line = `${src}  ->  ${dst}  (evidence=${e.evidence_type}, conf=${e.confidence})`;
+    if (filter && !line.includes(filter)) continue;
+    const div = document.createElement('div');
+    div.textContent = line;
+    edgesEl.appendChild(div);
+  }
+}
+
+async function loadGraph() {
+  const res = await fetch('/export/graph?format=json&limit=10000');
+  cachedGraph = await res.json();
+  graphMetaEl.textContent = `hosts=${(cachedGraph.hosts||[]).length}, edges=${(cachedGraph.edges||[]).length}`;
+  renderEdges();
+}
+
 // SSE
 const es = new EventSource('/watch/events');
 es.onmessage = (e) => {
@@ -101,9 +144,12 @@ es.onerror = () => appendLine('--- SSE disconnected (will auto-retry) ---');
 
 document.getElementById('refreshHosts').onclick = refreshHosts;
 document.getElementById('loadEvents').onclick = loadEvents;
+document.getElementById('loadGraph').onclick = loadGraph;
 document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
+edgeFilterEl.oninput = renderEdges;
 
 refreshHosts();
+loadGraph();
 </script>
 </body>
 </html>
