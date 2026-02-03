@@ -54,7 +54,11 @@ func (s *Spider) ScanHost(ctx context.Context, destHost string, since time.Durat
 		// Determine reachability from jump server.
 		reachable := s.ssh.CanConnect(ctx, it.host)
 
-		destID, err := s.store.UpsertHost(ctx, it.host, nil, "linux", reachable)
+		osType := "linux"
+		if reachable {
+			osType = s.detectOSType(ctx, it.host)
+		}
+		destID, err := s.store.UpsertHost(ctx, it.host, nil, osType, reachable)
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +68,7 @@ func (s *Spider) ScanHost(ctx context.Context, destHost string, since time.Durat
 			continue
 		}
 
-		logText, err := s.fetchSSHDLogs(ctx, it.host, since)
+		logText, err := s.fetchSSHDLogs(ctx, it.host, osType, since)
 		if err != nil {
 			return nil, err
 		}
@@ -102,9 +106,15 @@ func (s *Spider) ScanHost(ctx context.Context, destHost string, since time.Durat
 	return res, nil
 }
 
-func (s *Spider) fetchSSHDLogs(ctx context.Context, host string, since time.Duration) (string, error) {
+func (s *Spider) fetchSSHDLogs(ctx context.Context, host string, osType string, since time.Duration) (string, error) {
 	// Prefer journalctl if available; otherwise fall back to common files.
 	sinceArg := fmt.Sprintf("--since '%dm'", int(since.Minutes()))
+	if osType == "aix" {
+		// AIX commonly logs via syslog; exact location depends on configuration.
+		// Best-effort: try authlog, then syslog.
+		cmd := "sh -lc \"(test -r /var/adm/ras/authlog && tail -n 20000 /var/adm/ras/authlog) || (test -r /var/adm/messages && tail -n 20000 /var/adm/messages) || (test -r /var/log/messages && tail -n 20000 /var/log/messages)\""
+		return s.ssh.Run(ctx, host, cmd)
+	}
 	cmd := "sh -lc \"(command -v journalctl >/dev/null 2>&1 && journalctl -u ssh -u sshd " + sinceArg + " --no-pager) || (test -r /var/log/secure && tail -n 20000 /var/log/secure) || (test -r /var/log/auth.log && tail -n 20000 /var/log/auth.log)\""
 	return s.ssh.Run(ctx, host, cmd)
 }
