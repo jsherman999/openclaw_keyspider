@@ -1,0 +1,28 @@
+db:
+  dsn: "postgres://keyspider:keyspider@localhost:5432/keyspider?sslmode=disable"
+
+api:
+  listen: "127.0.0.1:8080"
+
+ssh:
+  # SSH user used by the jump server to reach managed targets.
+  user: "root"
+  connect_timeout_seconds: 10
+
+discovery:
+  dns:
+    enabled: true
+
+key_hunt:
+  enabled: true
+  # Rudimentary allowlist: only search for key material under these directories.
+  allow_roots:
+    - "/home"
+    - "/root"
+    - "/etc"
+  # Hard limits to reduce risk.
+  max_files: 20000
+  max_depth: 10
+
+watcher:
+  enabled: false

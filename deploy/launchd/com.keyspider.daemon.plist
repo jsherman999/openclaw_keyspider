@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.keyspider.daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/keyspiderd</string>
+    <string>serve</string>
+    <string>--config</string>
+    <string>/usr/local/etc/keyspider/keyspider.yaml</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/usr/local/var/log/keyspiderd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/usr/local/var/log/keyspiderd.err</string>
+</dict>
+</plist>

@@ -1,0 +1,17 @@
+# Podman Quadlet (systemd-managed container)
+# Place as: /etc/containers/systemd/keyspiderd.container
+
+[Unit]
+Description=keyspiderd (podman)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/keyspider:latest
+ContainerName=keyspiderd
+PublishPort=8080:8080
+Environment=KEYSPIDER_DB_DSN=postgres://keyspider:keyspider@db:5432/keyspider?sslmode=disable
+Volume=/etc/ssh/ssh_config:/etc/ssh/ssh_config:ro
+
+[Install]
+WantedBy=default.target
