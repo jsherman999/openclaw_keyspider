@@ -25,10 +25,37 @@ macOS does not natively use systemd. Use the provided launchd plist:
 - Load it with `launchctl`.
 
 ## Podman
-- Build image:
+
+### Build image
 
 ```bash
 podman build -t localhost/keyspider:latest -f deploy/podman/Containerfile .
 ```
 
-- If using systemd quadlet: copy `deploy/podman/keyspiderd.container` to `/etc/containers/systemd/` and run `systemctl --user daemon-reload` or system-level reload depending on location.
+### Run container (simple)
+
+```bash
+podman run --rm -p 8080:8080 \
+  -e KEYSPIDER_DB_DSN='postgres://keyspider:keyspider@host.containers.internal:5432/keyspider?sslmode=disable' \
+  localhost/keyspider:latest
+```
+
+Notes:
+- `host.containers.internal` works on many Podman setups; adjust to your DB host.
+- The image includes `openssh-client` so the container can SSH to targets.
+- Mount SSH config/keys as needed for your environment.
+
+### systemd Quadlet
+Copy `deploy/podman/keyspiderd.container` to `/etc/containers/systemd/` (system) or `~/.config/containers/systemd/` (user), then:
+
+```bash
+systemctl daemon-reload
+systemctl enable --now keyspiderd
+```
+
+If using the **user** location:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now keyspiderd
+```

@@ -10,8 +10,11 @@ Wants=network-online.target
 Image=localhost/keyspider:latest
 ContainerName=keyspiderd
 PublishPort=8080:8080
-Environment=KEYSPIDER_DB_DSN=postgres://keyspider:keyspider@db:5432/keyspider?sslmode=disable
+Environment=KEYSPIDER_DB_DSN=postgres://keyspider:keyspider@host.containers.internal:5432/keyspider?sslmode=disable
+# Mount SSH config and (optionally) your SSH keys.
 Volume=/etc/ssh/ssh_config:/etc/ssh/ssh_config:ro
+# Example (adjust):
+# Volume=%h/.ssh:/root/.ssh:ro
 
 [Install]
 WantedBy=default.target

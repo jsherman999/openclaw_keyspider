@@ -61,5 +61,8 @@ go run ./cmd/keyspiderd serve
 go run ./cmd/keyspider scan --host myserver.example.com --since 168h
 ```
 
+## CLI usage
+See [CLI_USAGE.md](./CLI_USAGE.md).
+
 ## Deployment
 See `deploy/` for systemd and podman artifacts.
