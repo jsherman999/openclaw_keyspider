@@ -7,4 +7,5 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
+	golang.org/x/crypto v0.36.0
 )

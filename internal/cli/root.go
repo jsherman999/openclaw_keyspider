@@ -31,6 +31,7 @@ func Main() {
 func scanCmd(cfgPath *string) *cobra.Command {
 	var host string
 	var since time.Duration
+	var depth int
 
 	cmd := &cobra.Command{
 		Use:   "scan",
@@ -54,18 +55,20 @@ func scanCmd(cfgPath *string) *cobra.Command {
 			}
 
 			sp := spider.New(cfg, dbConn)
-			res, err := sp.ScanHost(ctx, host, since)
+			res, err := sp.ScanHost(ctx, host, since, depth)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("host=%s events_inserted=%d keys_seen=%d\n", host, res.EventsInserted, res.KeysSeen)
+			fmt.Printf("host=%s events_inserted=%d keys_seen=%d hosts_visited=%d edges_upserted=%d concerns=%d\n",
+				host, res.EventsInserted, res.KeysSeen, res.HostsVisited, res.EdgesUpserted, res.ConcernsRaised)
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&host, "host", "", "destination host to scan")
 	cmd.Flags().DurationVar(&since, "since", 168*time.Hour, "how far back to scan logs")
+	cmd.Flags().IntVar(&depth, "spider-depth", 0, "spider out from jump server using DNS-identified sources, up to this depth")
 	_ = cmd.MarkFlagRequired("host")
 	return cmd
 }

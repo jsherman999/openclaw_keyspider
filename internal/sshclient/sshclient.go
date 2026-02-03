@@ -16,6 +16,14 @@ type Client struct {
 
 func New(cfg *config.Config) *Client { return &Client{cfg: cfg} }
 
+func (c *Client) CanConnect(ctx context.Context, host string) bool {
+	// Lightweight connectivity check.
+	ctx2, cancel := context.WithTimeout(ctx, c.cfg.SSH.ConnectTimeout)
+	defer cancel()
+	_, err := c.Run(ctx2, host, "true")
+	return err == nil
+}
+
 func (c *Client) Run(ctx context.Context, host string, remoteCmd string) (string, error) {
 	userHost := host
 	if c.cfg.SSH.User != "" && !strings.Contains(host, "@") {

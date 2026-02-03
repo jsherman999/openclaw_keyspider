@@ -23,17 +23,17 @@ type Host struct {
 }
 
 type AccessEvent struct {
-	ID              int64     `json:"id"`
-	TS              time.Time `json:"ts"`
-	DestHostID      int64     `json:"dest_host_id"`
-	DestUser        *string   `json:"dest_user"`
-	SourceHost      *string   `json:"source_host"`
-	SourceIP        *string   `json:"source_ip"`
-	SourcePort      *int      `json:"source_port"`
-	Fingerprint     *string   `json:"fingerprint_sha256"`
-	AuthMethod      *string   `json:"auth_method"`
-	Result          *string   `json:"result"`
-	RawLine         string    `json:"raw_line"`
+	ID          int64     `json:"id"`
+	TS          time.Time `json:"ts"`
+	DestHostID  int64     `json:"dest_host_id"`
+	DestUser    *string   `json:"dest_user"`
+	SourceHost  *string   `json:"source_host"`
+	SourceIP    *string   `json:"source_ip"`
+	SourcePort  *int      `json:"source_port"`
+	Fingerprint *string   `json:"fingerprint_sha256"`
+	AuthMethod  *string   `json:"auth_method"`
+	Result      *string   `json:"result"`
+	RawLine     string    `json:"raw_line"`
 }
 
 func (s *Store) UpsertHost(ctx context.Context, hostname string, fqdn *string, osType string, reachable bool) (int64, error) {
