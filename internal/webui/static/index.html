@@ -21,6 +21,31 @@
 
   <div class="row">
     <div class="col card">
+      <h3>Run scan</h3>
+      <div>
+        <label>Host:</label>
+        <input id="scanHost" placeholder="server1.example.com" style="width: 280px;" />
+      </div>
+      <div style="margin-top: 8px;">
+        <label>Since:</label>
+        <select id="scanSince">
+          <option value="3600">1h</option>
+          <option value="21600">6h</option>
+          <option value="86400">24h</option>
+          <option value="259200">3d</option>
+          <option value="604800" selected>7d</option>
+        </select>
+        <label style="margin-left: 8px;">Depth:</label>
+        <select id="scanDepth">
+          <option value="0" selected>0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+        <button id="runScan">Scan</button>
+      </div>
+      <div id="scanStatus" class="muted" style="margin-top: 8px;"></div>
+    </div>
+    <div class="col card">
       <h3>Exports</h3>
       <ul>
         <li><a href="/export/graph?format=json" target="_blank">Graph JSON</a></li>
@@ -66,6 +91,11 @@ const filterEl = document.getElementById('filter');
 const edgeFilterEl = document.getElementById('edgeFilter');
 const edgesEl = document.getElementById('edges');
 const graphMetaEl = document.getElementById('graphMeta');
+
+const scanHostEl = document.getElementById('scanHost');
+const scanSinceEl = document.getElementById('scanSince');
+const scanDepthEl = document.getElementById('scanDepth');
+const scanStatusEl = document.getElementById('scanStatus');
 
 let cachedGraph = null;
 
@@ -142,9 +172,48 @@ es.onmessage = (e) => {
 
 es.onerror = () => appendLine('--- SSE disconnected (will auto-retry) ---');
 
+async function runScan() {
+  const host = (scanHostEl.value || '').trim();
+  if (!host) {
+    scanStatusEl.textContent = 'host required';
+    return;
+  }
+  const since_seconds = parseInt(scanSinceEl.value, 10);
+  const spider_depth = parseInt(scanDepthEl.value, 10);
+
+  scanStatusEl.textContent = 'enqueuing scan...';
+  const res = await fetch('/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ host, since_seconds, spider_depth })
+  });
+  if (!res.ok) {
+    scanStatusEl.textContent = 'scan enqueue failed';
+    return;
+  }
+  const obj = await res.json();
+  const jobId = obj.job_id;
+  scanStatusEl.textContent = `queued job_id=${jobId}`;
+
+  // poll job
+  for (;;) {
+    await new Promise(r => setTimeout(r, 1000));
+    const jr = await fetch(`/scan/${encodeURIComponent(jobId)}`);
+    if (!jr.ok) break;
+    const j = await jr.json();
+    scanStatusEl.textContent = `job_id=${jobId} status=${j.status}` + (j.error ? ` error=${j.error}` : '');
+    if (j.status === 'done' || j.status === 'error') break;
+  }
+
+  // refresh views
+  await refreshHosts();
+  await loadGraph();
+}
+
 document.getElementById('refreshHosts').onclick = refreshHosts;
 document.getElementById('loadEvents').onclick = loadEvents;
 document.getElementById('loadGraph').onclick = loadGraph;
+document.getElementById('runScan').onclick = runScan;
 document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
 edgeFilterEl.oninput = renderEdges;
 

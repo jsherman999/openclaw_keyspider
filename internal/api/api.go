@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jsherman999/openclaw_keyspider/internal/config"
@@ -31,6 +32,50 @@ func (a *API) Router() http.Handler {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Enqueue a scan job (used by the Web UI)
+	// POST /scan {"host":"server","since_seconds":604800,"spider_depth":1}
+	r.Post("/scan", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Host         string `json:"host"`
+			SinceSeconds int    `json:"since_seconds"`
+			SpiderDepth  int    `json:"spider_depth"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if req.Host == "" {
+			http.Error(w, "host required", 400)
+			return
+		}
+		since := 168 * 3600
+		if req.SinceSeconds > 0 {
+			since = req.SinceSeconds
+		}
+		jobID, err := a.store.EnqueueScanJob(r.Context(), req.Host, time.Duration(since)*time.Second, req.SpiderDepth)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"job_id": jobID})
+	})
+
+	// Get scan job status
+	r.Get("/scan/{id}", func(w http.ResponseWriter, r *http.Request) {
+		idStr := chi.URLParam(r, "id")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		job, err := a.store.GetScanJob(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(job)
 	})
 
 	// Phase 3: SSE stream of newly-ingested watcher events.
@@ -106,8 +151,11 @@ func (a *API) Router() http.Handler {
 			}
 		}
 
-		var b []byte
-		var ct string
+		var (
+			b   []byte
+			ct  string
+			err error
+		)
 		switch format {
 		case "json":
 			b, ct, err = exporter.ExportGraphJSON(r.Context(), a.store, limit)
@@ -129,8 +177,8 @@ func (a *API) Router() http.Handler {
 	})
 
 	// Web UI
-	ui, err := webui.Handler()
-	if err == nil {
+	ui, uiErr := webui.Handler()
+	if uiErr == nil {
 		r.Handle("/*", ui)
 	}
 
